@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema di Prenotazione Appuntamenti Feriali</title>
+    <!-- Inclusione della libreria EmailJS -->
+    <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #4a90e2;
+            --secondary-color: #f5f7fa;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--secondary-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            max-width: 500px;
+            width: 100%;
+        }
+
+        h2 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 25px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+        }
+
+        input, select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-size: 16px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: background 0.3s;
+        }
+
+        button:hover {
+            background-color: #357abd;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Prenota il tuo Appuntamento</h2>
+    <form id="bookingForm">
+        
+        <!-- Nome -->
+        <div class="form-group">
+            <label for="name">Nome Completo *</label>
+            <input type="text" id="name" required placeholder="Inserisci il tuo nome">
+        </div>
+
+        <!-- Tipo di appuntamento -->
+        <div class="form-group">
+            <label for="appointmentType">Tipo di Appuntamento *</label>
+            <select id="appointmentType" required>
+                <option value="">Seleziona la tipologia</option>
+                <option value="Ricerca del lavoro">Ricerca del lavoro (2 ore)</option>
+                <option value="Ricerca della casa">Ricerca della casa (2 ore)</option>
+                <option value="Appuntamento in ufficio">Appuntamento in ufficio (1 ora)</option>
+                <option value="Formazione">Formazione (1 ora)</option>
+                <option value="Tirocinio">Tirocinio (1 ora)</option>
+                <option value="Videochiamata">Videochiamata (1 ora)</option>
+                <option value="Curriculum">Curriculum (1 ora)</option>
+            </select>
+        </div>
+
+        <!-- Mese -->
+        <div class="form-group">
+            <label for="month">Mese *</label>
+            <select id="month" required disabled>
+                <option value="">Prima seleziona la tipologia</option>
+                <option value="1">Gennaio</option>
+                <option value="2">Febbraio</option>
+                <option value="3">Marzo</option>
+                <option value="4">Aprile</option>
+                <option value="5">Maggio</option>
+                <option value="6">Giugno</option>
+                <option value="7">Luglio</option>
+                <option value="8">Agosto</option>
+                <option value="9">Settembre</option>
+                <option value="10">Ottobre</option>
+                <option value="11">Novembre</option>
+                <option value="12">Dicembre</option>
+            </select>
+        </div>
+
+        <!-- Giorno (Solo feriali) -->
+        <div class="form-group">
+            <label for="dayNumber">Giorno del Mese *</label>
+            <select id="dayNumber" required disabled>
+                <option value="">Prima seleziona il mese</option>
+            </select>
+        </div>
+
+        <!-- Orario -->
+        <div class="form-group">
+            <label for="timeSlot">Orario Disponibile *</label>
+            <select id="timeSlot" required disabled>
+                <option value="">Prima seleziona il giorno</option>
+            </select>
+        </div>
+
+        <button type="submit" id="submitBtn">Prenota Ora</button>
+    </form>
+</div>
+
+<script>
+    // --- CONFIGURAZIONE EMAILJS ---
+    (function() {
+        emailjs.init("etABO0HJYt3TsdzYI"); 
+    })();
+
+    const form = document.getElementById('bookingForm');
+    const typeSelect = document.getElementById('appointmentType');
+    const monthSelect = document.getElementById('month');
+    const daySelect = document.getElementById('dayNumber');
+    const timeSelect = document.getElementById('timeSlot');
+
+    let bookedSlots = JSON.parse(localStorage.getItem('bookedSlots')) || [];
+
+    const monthNames = {
+        "1": "Gennaio", "2": "Febbraio", "3": "Marzo", "4": "Aprile", 
+        "5": "Maggio", "6": "Giugno", "7": "Luglio", "8": "Agosto", 
+        "9": "Settembre", "10": "Ottobre", "11": "Novembre", "12": "Dicembre"
+    };
+
+    // Funzione per calcolare il Lunedì dell'Angelo (Pasquetta)
+    function getEasterMonday(year) {
+        const f = Math.floor,
+            G = year % 19,
+            C = f(year / 100),
+            H = (C - f(C / 4) - f((8 * C + 13) / 25) + 19 * G + 15) % 30,
+            I = H - f(H / 28) * (1 - f(29 / (H + 1)) * f((21 - G) / 11)),
+            J = (year + f(year / 4) + I + 2 - C + f(C / 4)) % 7,
+            L = I - J,
+            month = 3 + f((L + 40) / 44),
+            day = L + 28 - 31 * f(month / 4);
+        
+        const easterDate = new Date(year, month - 1, day);
+        easterDate.setDate(easterDate.getDate() + 1); // Aggiunge un giorno per avere Pasquetta
+        return easterDate;
+    }
+
+    // Funzione per verificare se un giorno è festivo in Italia
+    function isItalianHoliday(day, month, year) {
+        // Festività fisse
+        const fixedHolidays = [
+            "1-1",   // Capodanno
+            "6-1",   // Epifania
+            "25-4",  // Liberazione
+            "1-5",   // Lavoratori
+            "2-6",   // Festa della Repubblica
+            "15-8",  // Ferragosto
+            "1-11",  // Tutti i Santi
+            "8-12",  // Immacolata
+            "25-12", // Natale
+            "26-12"  // Santo Stefano
+        ];
+        
+        if (fixedHolidays.includes(`${day}-${month}`)) {
+            return true;
+        }
+
+        // Controllo Pasquetta (Festa variabile)
+        const pasquetta = getEasterMonday(year);
+        if (day === pasquetta.getDate() && (month - 1) === pasquetta.getMonth()) {
+            return true;
+        }
+
+        return false;
+    }
+
+    typeSelect.addEventListener('change', function() {
+        if (typeSelect.value) {
+            monthSelect.disabled = false;
+        } else {
+            monthSelect.disabled = true;
+            monthSelect.value = "";
+        }
+        resetFormFrom('month');
+    });
+
+    // Generazione dinamica dei giorni escludendo Weekend e Festivi
+    monthSelect.addEventListener('change', function() {
+        const month = parseInt(monthSelect.value);
+        resetFormFrom('day');
+        
+        if (!month) {
+            daySelect.disabled = true;
+            return;
+        }
+
+        const currentYear = new Date().getFullYear();
+        const daysInMonth = new Date(currentYear, month, 0).getDate();
+
+        for (let i = 1; i <= daysInMonth; i++) {
+            const dateToCheck = new Date(currentYear, month - 1, i);
+            const dayOfWeek = dateToCheck.getDay(); // 0 = Domenica, 6 = Sabato
+
+            // Esclude Sabato (6), Domenica (0) e le Festività Italiane
+            if (dayOfWeek !== 0 && dayOfWeek !== 6 && !isItalianHoliday(i, month, currentYear)) {
+                const option = document.createElement('option');
+                option.value = i;
+                option.textContent = i;
+                daySelect.appendChild(option);
+            }
+        }
+        daySelect.disabled = false;
+    });
+
+    daySelect.addEventListener('change', function() {
+        resetFormFrom('time');
+        if (!daySelect.value) {
+            timeSelect.disabled = true;
+            return;
+        }
+
+        const type = typeSelect.value;
+        const monthVal = monthSelect.value;
+        const dayVal = daySelect.value;
+        
+        let allSlots = [];
+
+        if (type === "Ricerca del lavoro" || type === "Ricerca della casa") {
+            allSlots = ["09:00", "11:00"]; 
+        } else {
+            allSlots = ["09:00", "10:00", "11:00", "12:00"]; 
+        }
+
+        allSlots.forEach(slot => {
+            const key = `${monthVal}-${dayVal}-${slot}`;
+            if (!bookedSlots.includes(key)) {
+                const option = document.createElement('option');
+                option.value = slot;
+                option.textContent = slot;
+                timeSelect.appendChild(option);
+            }
+        });
+
+        if (timeSelect.options.length === 1) {
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = "Nessun orario rimasto per oggi";
+            option.disabled = true;
+            timeSelect.appendChild(option);
+        }
+
+        timeSelect.disabled = false;
+    });
+
+    function resetFormFrom(level) {
+        if (level === 'month') {
+            daySelect.innerHTML = '<option value="">Prima seleziona il mese</option>';
+            daySelect.disabled = true;
+            timeSelect.innerHTML = '<option value="">Prima seleziona il giorno</option>';
+            timeSelect.disabled = true;
+        }
+        if (level === 'day') {
+            daySelect.innerHTML = '<option value="">Seleziona il giorno</option>';
+            timeSelect.innerHTML = '<option value="">Prima seleziona il giorno</option>';
+            timeSelect.disabled = true;
+        }
+        if (level === 'time') {
+            timeSelect.innerHTML = '<option value="">Seleziona un orario</option>';
+        }
+    }
+
+    form.addEventListener('submit', function(event) {
+        event.preventDefault();
+
+        const name = document.getElementById('name').value;
+        const monthVal = monthSelect.value;
+        const dayVal = daySelect.value;
+        const timeVal = timeSelect.value;
+        const type = typeSelect.value;
+
+        const templateParams = {
+            to_email: 'sefora.cent@gmail.com',
+            // Uniamo nome e motivo: così se anche solo {{from_name}} funziona su EmailJS, vedrai tutto!
+            from_name: name + " (" + type + ")",               
+            appointment_type: type,        
+            month: monthNames[monthVal],   
+            day: dayVal,                   
+            time: timeVal,
+            // Per sicurezza creiamo anche la variabile generica 'message' che molti template standard usano
+            message: "Nuovo appuntamento per: " + type + " il giorno " + dayVal + " " + monthNames[monthVal] + " alle ore " + timeVal
+        };
+
+        // NOTA: ricordati di rimettere qui i tuoi ID al posto di 'YOUR_SERVICE_ID' e 'YOUR_TEMPLATE_ID'
+        emailjs.send('service_5xl9y1y', 'template_jt7y1fi', templateParams)
+            .then(function() {
+                alert('Prenotazione effettuata con successo!');
+                
+                const newBookingKey = `${monthVal}-${dayVal}-${timeVal}`;
+                bookedSlots.push(newBookingKey);
+                localStorage.setItem('bookedSlots', JSON.stringify(bookedSlots));
+                
+                form.reset();
+                resetFormFrom('month');
+                monthSelect.disabled = true;
+            }, function(error) {
+                alert('Errore EmailJS: ' + JSON.stringify(error));
+            });
+    });
+</script>
+
+</body>
+</html>
